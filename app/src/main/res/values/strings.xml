@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">MovieSearchApp</string>
+    <string-array name="movie_types">
+        <item>All</item>
+        <item>Movie</item>
+        <item>Series</item>
+        <item>Episode</item>
+    </string-array>
+    <string name="search_error_message">An error occurred while parsing the movie details.</string>
 </resources>

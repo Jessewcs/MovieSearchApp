@@ -16,6 +16,16 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -31,6 +41,7 @@ public class SearchActivity extends AppCompatActivity {
     private RecyclerView recyclerView;
     private String movieName;
     private boolean isSearching;
+    private List<Movie> movieList;
 
     // OMDb API Key
     private final String apiKey = "87a49b6f";
@@ -47,6 +58,8 @@ public class SearchActivity extends AppCompatActivity {
         progressBar = findViewById(R.id.progressBar);
         resultTextView = findViewById(R.id.resultTextView);
         recyclerView = findViewById(R.id.recyclerView);
+
+        movieList = new ArrayList<>(); // Initialize the movie list
 
         /**
          * hideKeyboard(v): Hides the soft keyboard after the user initiates a search.
@@ -126,7 +139,83 @@ public class SearchActivity extends AppCompatActivity {
     }
 
     private void searchMovies(String movieName) {
+        isSearching = true;
+        executorService.execute(() -> {
+            try {
+                String encodedMovieName = URLEncoder.encode(movieName, "UTF-8");
+                String urlString = "http://img.omdbapi.com/?s=" + encodedMovieName + "$apikey=" + apiKey;
+                URL url = new URL(urlString);
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.connect();
+
+                int responseCode = connection.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
+
+                    // Parse and display the movie details
+                    updateUI(() -> parseSearchResults(response.toString()));
+                } else {
+                    updateUI(() -> showError("Failed to fetch movie details! Response code: " + responseCode));
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                updateUI(() -> showError("An error occurred while fetching the movie details!"));
+            }
+        });
+    }
+
+    /**
+     * A method to parse the JSON response from the search query.
+     * Converts the response string into a JSONObject.
+     * Checks if the response contains a "Search" array.
+     * Iterates over the array to extract imdbID for each movie.
+     * Calls fetchDetailedMovieInfo(imdbID) for each movie.
+     * Needed bc the initial search response provides basic information. Additional details require separate requests.
+     */
+    private void parseSearchResults(final String searchResponse) {
+        updateUI(() -> {
+            try {
+                JSONObject movieJson = new JSONObject(searchResponse);
+                if (movieJson.has("Search")) {
+                    JSONArray moviesArray = movieJson.getJSONArray("Search");
+                    movieList.clear();
+                    for (int i = 0; i < moviesArray.length(); i++) {
+                        JSONObject movie = moviesArray.getJSONObject(i);
+                        String imdbID = movie.getString("imdbID");
+
+                        // Fetch detailed movie info by IMDb ID
+                        fetchDetailedMovieInfo(imdbID);
+                    }
+                    resultTextView.setVisibility(View.GONE);
+                    isSearching = false;
+                } else {
+                    resultTextView.setText("Movie was not found! Please try again!");
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                resultTextView.setText(R.string.search_error_message);
+            }
+            progressBar.setVisibility(View.GONE);
+        });
+    }
+
+    private void fetchDetailedMovieInfo(String imdbID) {
         // To be implemented
+    }
+
+    /**
+     * Display the error message
+     */
+    private void showError(final String message) {
+        runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_SHORT).show());
+        progressBar.setVisibility(View.GONE); // Hide if there is an error
     }
 
     /**
