@@ -1,8 +1,10 @@
 package com.example.moviesearchapp;
 
 import android.app.AlertDialog;
+import android.content.Context;
 import android.os.Bundle;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ProgressBar;
@@ -16,6 +18,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 
 public class SearchActivity extends AppCompatActivity {
@@ -45,6 +48,13 @@ public class SearchActivity extends AppCompatActivity {
         resultTextView = findViewById(R.id.resultTextView);
         recyclerView = findViewById(R.id.recyclerView);
 
+        /**
+         * hideKeyboard(v): Hides the soft keyboard after the user initiates a search.
+         * Input Validation: Checks if the user has entered a movie name.
+         * Updating UI: Shows the progress bar and hides any previous messages.
+         * Initiating Search: Calls searchMovies with the entered movie name.
+         * User Feedback: Shows a Toast message if the input is empty.
+         */
         searchButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -65,7 +75,12 @@ public class SearchActivity extends AppCompatActivity {
             searchMovies(movieName);
         }
 
-        // Handle back button pressed
+        /**
+         * A custom back button handler.
+         * Checks if a search is in progress (isSearching flag), If so, prompts the user with a confirmation dialog.
+         * If the user confirms, shuts down the executor service and exits the activity, If not, simply exits the activity.
+         * Needed to prevent abrupt termination of ongoing network operations and improve user experience.
+         */
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -88,36 +103,60 @@ public class SearchActivity extends AppCompatActivity {
         });
     }
 
+    /**
+     * Cleans up resources when the activity is destroyed.
+     * Shuts down the ExecutorService to prevent memory leaks and stop background tasks.
+     * Ensures that background operations do not continue when the activity is no longer active.
+     */
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        shutdownAndTerminateSearch(executorService);
+    }
+
+    /**
+     * A utility method to run code on the main UI thread.
+     * Checks if the activity is still active before executing the Runnable.
+     * UI updates must be performed on the main thread to avoid exceptions.
+     */
+    private void updateUI(Runnable updateTask) {
+        if (!isFinishing() && !isDestroyed()) {
+            runOnUiThread(updateTask);
+        }
+    }
+
     private void searchMovies(String movieName) {
         // To be implemented
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    private void shutdownAndTerminateSearch(ExecutorService executorService) {
-        // To be implemented
+    /**
+     * Attempts to gracefully shut down the executor service, waiting for tasks to finish before forcing a shutdown.
+     */
+    private void shutdownAndTerminateSearch(ExecutorService thread) {
+        thread.shutdown();
+        try {
+            if (!thread.awaitTermination(10, TimeUnit.SECONDS)) {
+                thread.shutdownNow();
+                if (!thread.awaitTermination(10, TimeUnit.SECONDS)) {
+                    System.err.println("Search did not terminate!");
+                }
+            }
+        } catch (InterruptedException e) {
+            thread.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
-    private void hideKeyboard(View v) {
-        // To be implemented
+    /**
+     * A utility method to hide the soft keyboard
+     * Uses the InputMethodManager to hide the keyboard from the current focus.
+     * To improve UI aesthetics after the user initiates a search.
+     */
+    private void hideKeyboard(View view) {
+        try {
+            InputMethodManager inputMethodManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            inputMethodManager.hideSoftInputFromWindow(view.getWindowToken(), 0);
+        } catch (Exception ignored) {
+        }
     }
-
-
-
 }
